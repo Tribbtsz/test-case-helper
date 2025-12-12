@@ -28,21 +28,22 @@
               直接读取当前 CSV 用例，便捷打钩、筛选、编辑、统计并生成测试报告；数据仅存储在浏览器或导出文件，默认保留备份。
             </p>
             <p class="mt-2 text-xs text-slate-500">
-              来源文件：<span class="font-medium text-slate-700" x-text="sourceFile || '未加载'"></span>
+              <template x-if="sourceFile">
+                <span>来源文件：<span class="font-medium text-slate-700" x-text="sourceFile"></span></span>
+              </template>
               <template x-if="lastSavedAt">
                 <span class="ml-2 text-emerald-600">已保存：<span x-text="formatDateTime(lastSavedAt)"></span></span>
+              </template>
+              <template x-if="!sourceFile && !lastSavedAt">
+                <span class="text-amber-600">请先导入测试用例文件</span>
               </template>
             </p>
           </div>
           <div class="flex flex-wrap gap-2">
-            <button class="btn-ghost" :disabled="loading" @click="loadDefault()">加载默认CSV</button>
-            <label class="btn-ghost cursor-pointer">
+            <label class="btn-primary cursor-pointer">
               <input class="sr-only" type="file" accept=".csv,.xlsx,.xls" @change="handleFile" />
               导入文件
             </label>
-            <button class="btn-ghost" @click="persist(true, true)">保存到浏览器</button>
-            <button class="btn-ghost" @click="exportCsv(false)">导出CSV</button>
-            <button class="btn-ghost" @click="exportCsv(true)">导出备份</button>
             <button class="btn-primary" @click="generateReport()">生成报告</button>
             <button class="btn-ghost text-red-600 hover:text-red-700" @click="clearLocal()">清除缓存</button>
           </div>
@@ -241,7 +242,6 @@
                       </td>
                       <td class="px-4 py-3 text-right">
                         <div class="flex flex-wrap justify-end gap-2">
-                          <button class="btn-ghost px-2 py-1 text-xs" @click="startEdit(item)">编辑</button>
                           <button class="btn-ghost px-2 py-1 text-xs" @click="setStatus(item, '通过')">通过</button>
                           <button class="btn-ghost px-2 py-1 text-xs" @click="setStatus(item, '失败')">失败</button>
                         </div>
@@ -300,7 +300,6 @@
                         <span x-text="s"></span>
                       </button>
                     </template>
-                    <button class="btn-ghost px-2 py-1 text-xs" @click="startEdit(item)">编辑</button>
                   </div>
                   <p class="mt-2 text-[11px] text-slate-500">
                     <template x-if="item.updatedAt">
@@ -314,97 +313,6 @@
         </div>
       </section>
 
-      <!-- 编辑弹窗 -->
-      <div
-        x-show="editingItem"
-        x-cloak
-        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4 py-6"
-        x-transition.opacity
-        @click.self="cancelEdit()"
-      >
-        <div class="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-xl" @click.stop>
-          <div class="flex items-center justify-between border-b border-slate-200 pb-4">
-            <div>
-              <p class="text-xs uppercase text-blue-600">编辑测试用例</p>
-              <h3 class="text-lg font-semibold text-slate-900" x-text="editingItem?.id || ''"></h3>
-            </div>
-            <button class="btn-ghost px-3 py-1 text-sm" @click="cancelEdit()">✕ 关闭</button>
-          </div>
-
-          <div class="mt-4 grid gap-4 sm:grid-cols-2">
-            <label class="sm:col-span-2 flex flex-col gap-2 text-sm">
-              <span class="font-medium text-slate-700">测试场景 / 用例名</span>
-              <input
-                class="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                placeholder="如：AI生成并保存作品"
-                x-model="editForm.scenario"
-                :class="priorityBadge(editForm.priority)"
-              />
-            </label>
-            <label class="flex flex-col gap-2 text-sm">
-              <span class="font-medium text-slate-700">优先级</span>
-              <select
-                class="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                x-model="editForm.priority"
-              >
-                <option value="">未设</option>
-                <option value="高">高</option>
-                <option value="中">中</option>
-                <option value="低">低</option>
-              </select>
-            </label>
-            <label class="flex flex-col gap-2 text-sm">
-              <span class="font-medium text-slate-700">测试模块</span>
-              <input
-                class="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                placeholder="如：作品创建、作品报价等"
-                x-model="editForm.module"
-              />
-            </label>
-          </div>
-
-          <div class="mt-4 grid gap-4 sm:grid-cols-2">
-            <label class="flex flex-col gap-2 text-sm">
-              <span class="font-medium text-slate-700">前置条件</span>
-              <textarea
-                class="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                rows="3"
-                placeholder="如：用户已登录小程序"
-                x-model="editForm.precondition"
-              ></textarea>
-            </label>
-            <label class="flex flex-col gap-2 text-sm">
-              <span class="font-medium text-slate-700">预期结果</span>
-              <textarea
-                class="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                rows="3"
-                placeholder="如：作品保存成功，状态为未获价"
-                x-model="editForm.expected"
-              ></textarea>
-            </label>
-            <label class="sm:col-span-2 flex flex-col gap-2 text-sm">
-              <span class="font-medium text-slate-700">测试步骤 <span class="text-slate-400">(每行一个步骤)</span></span>
-              <textarea
-                class="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                rows="5"
-                placeholder="1. 进入AI创作页面&#10;2. 点击生成作品按钮&#10;3. 完成作品上传/生成&#10;4. 保存作品"
-                x-model="editForm.editingSteps"
-              ></textarea>
-            </label>
-          </div>
-
-          <div class="mt-6 flex items-center justify-between border-t border-slate-200 pt-4">
-            <label class="flex items-center gap-2 text-sm text-slate-600">
-              <input type="checkbox" class="rounded border-slate-300 text-blue-600" x-model="saveWithBackup" />
-              <span>保存时同时导出备份</span>
-            </label>
-            <div class="flex gap-3">
-              <button class="btn-ghost" @click="cancelEdit()">取消</button>
-              <button class="btn-primary" @click="saveEdit(saveWithBackup)">保存修改</button>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
 
     <script type="module" src="/src/main.js"></script>

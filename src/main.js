@@ -3,7 +3,6 @@ import './style.css'
 import * as XLSX from 'xlsx'
 
 const STORAGE_KEY = 'testcase-tool-state-v1'
-const DEFAULT_FILE = '测试用例.csv'
 const CSV_HEADERS = ['测试用例ID', '测试模块', '测试场景', '前置条件', '测试步骤', '预期结果', '优先级', '备注']
 const STATUS_OPTIONS = ['未执行', '通过', '失败', '阻塞', '跳过']
 const PRIORITY_ORDER = ['高', '中', '低']
@@ -210,39 +209,17 @@ Alpine.data('testcaseApp', () => ({
     onlyFailed: false,
   },
   statusOptions: STATUS_OPTIONS,
-  sourceFile: DEFAULT_FILE,
+  sourceFile: '',
   message: '',
   loading: false,
   lastSavedAt: null,
   view: 'table',
   dirty: false,
-  editingItem: null,
-  saveWithBackup: false,
-  editForm: {
-    module: '',
-    scenario: '',
-    priority: '',
-    precondition: '',
-    editingSteps: '',
-    expected: '',
-    actual: '',
-  },
 
   init() {
-    window.addEventListener('beforeunload', (e) => {
-      if (this.dirty) {
-          const wantBackup = confirm('有未保存修改，是否导出备份？选择“确定”将导出备份并离开，“取消”留在页面。')
-          if (wantBackup) {
-            this.exportCsv(true)
-            return
-          }
-          e.preventDefault()
-          e.returnValue = ''
-      }
-    })
     this.restoreFromLocal()
     if (!this.cases.length) {
-      this.loadDefault()
+      this.message = '请导入测试用例文件（CSV 或 XLSX）开始使用'
     } else {
       this.refreshLookups()
     }
@@ -253,21 +230,6 @@ Alpine.data('testcaseApp', () => ({
     setTimeout(() => {
       this.message = ''
     }, 2000)
-  },
-
-  async loadDefault() {
-    this.loading = true
-    try {
-      const res = await fetch(`/${DEFAULT_FILE}?t=${Date.now()}`)
-      if (!res.ok) throw new Error('默认 CSV 加载失败')
-      const text = await res.text()
-      this.applyCsv(text, DEFAULT_FILE)
-      this.toast('已加载默认 CSV')
-    } catch (err) {
-      this.toast(err.message || '加载失败')
-    } finally {
-      this.loading = false
-    }
   },
 
   handleFile(event) {
@@ -297,7 +259,7 @@ Alpine.data('testcaseApp', () => ({
     event.target.value = ''
   },
 
-  applyRows(rows, filename = DEFAULT_FILE) {
+  applyRows(rows, filename = '测试用例') {
     if (!rows.length) {
       this.toast('文件内容为空')
       return
@@ -339,9 +301,10 @@ Alpine.data('testcaseApp', () => ({
     this.sourceFile = filename
     this.refreshLookups()
     this.dirty = false
+    this.persist()
   },
 
-  applyCsv(text, filename = DEFAULT_FILE) {
+  applyCsv(text, filename = '测试用例') {
     const rows = parseCsv(text)
     this.applyRows(rows, filename)
   },
@@ -409,45 +372,6 @@ Alpine.data('testcaseApp', () => ({
     this.markDirty()
   },
 
-  startEdit(item) {
-    this.editingItem = item
-    this.editForm = {
-      module: item.module,
-      scenario: item.scenario,
-      priority: item.priority,
-      precondition: item.precondition,
-      editingSteps: item.steps.join('\n'),
-      expected: item.expected,
-      actual: item.actual,
-    }
-  },
-
-  cancelEdit() {
-    this.editingItem = null
-    this.saveWithBackup = false
-  },
-
-  saveEdit(withBackup = false) {
-    if (!this.editingItem) return
-    const target = this.editingItem
-    target.module = this.editForm.module
-    target.scenario = this.editForm.scenario
-    target.priority = this.editForm.priority
-    target.precondition = this.editForm.precondition
-    target.steps = normalizeSteps(this.editForm.editingSteps || '')
-    target.expected = this.editForm.expected
-    target.actual = this.editForm.actual
-    target.updatedAt = new Date().toISOString()
-    this.markDirty()
-    this.persist()
-    if (withBackup) {
-      this.exportCsv(true)
-    }
-    this.editingItem = null
-    this.saveWithBackup = false
-    this.toast(withBackup ? '已保存并导出备份' : '已保存修改')
-  },
-
   resetFilters() {
     this.filters = {
       search: '',
@@ -471,12 +395,10 @@ Alpine.data('testcaseApp', () => ({
 
   markDirty() {
     this.dirty = true
+    this.persist()
   },
 
-  persist(showToast = false, askBackup = false) {
-    if (askBackup && confirm('是否导出备份？')) {
-      this.exportCsv(true)
-    }
+  persist() {
     const payload = {
       cases: this.cases,
       sourceFile: this.sourceFile,
@@ -485,7 +407,6 @@ Alpine.data('testcaseApp', () => ({
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
     this.lastSavedAt = payload.lastSavedAt
     this.dirty = false
-    if (showToast) this.toast('已保存到浏览器')
   },
 
   restoreFromLocal() {
@@ -494,7 +415,7 @@ Alpine.data('testcaseApp', () => ({
     try {
       const data = JSON.parse(raw)
       this.cases = data.cases || []
-      this.sourceFile = data.sourceFile || DEFAULT_FILE
+      this.sourceFile = data.sourceFile || ''
       this.lastSavedAt = data.lastSavedAt || null
     } catch (err) {
       console.error(err)

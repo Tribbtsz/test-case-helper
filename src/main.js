@@ -84,7 +84,7 @@ const summarize = (cases) => {
   })
   const total = cases.length
   const executed = total - (statusCount['未执行'] || 0)
-  const passRate = total ? Math.round(((statusCount['通过'] || 0) / total) * 100) : 0
+  const passRate = executed ? Math.round(((statusCount['通过'] || 0) / executed) * 100) : 0
   return { total, executed, statusCount, priorityCount, passRate }
 }
 
@@ -488,11 +488,11 @@ Alpine.data('testcaseApp', () => ({
         desc: `未执行：${statusCount['未执行'] || 0}`,
       },
       {
-        label: '通过 / 失败 / 阻塞',
-        value: `${statusCount['通过'] || 0} / ${statusCount['失败'] || 0} / ${statusCount['阻塞'] || 0}`,
+        label: '通过 / 失败 / 阻塞 / 跳过',
+        value: `${statusCount['通过'] || 0} / ${statusCount['失败'] || 0} / ${statusCount['阻塞'] || 0} / ${statusCount['跳过'] || 0}`,
         sub: `通过率 ${passRate}%`,
         badgeClass: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-        desc: `跳过：${statusCount['跳过'] || 0}`,
+        desc: `已执行 ${executed} 个`,
       },
     ]
   },

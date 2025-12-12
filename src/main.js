@@ -1,5 +1,6 @@
 import Alpine from 'alpinejs'
 import './style.css'
+import * as XLSX from 'xlsx'
 
 const STORAGE_KEY = 'testcase-tool-state-v1'
 const DEFAULT_FILE = '测试用例.csv'
@@ -58,6 +59,14 @@ const parseCsv = (text) =>
     .map((line) => line.trim())
     .filter(Boolean)
     .map(splitCsvLine)
+
+const parseXlsx = (arrayBuffer) => {
+  const workbook = XLSX.read(arrayBuffer, { type: 'array' })
+  const firstSheetName = workbook.SheetNames[0]
+  const worksheet = workbook.Sheets[firstSheetName]
+  const data = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' })
+  return data.filter(row => row.some(cell => cell !== ''))
+}
 
 const normalizeSteps = (raw = '') =>
   raw
@@ -264,19 +273,33 @@ Alpine.data('testcaseApp', () => ({
   handleFile(event) {
     const file = event.target.files?.[0]
     if (!file) return
+    
+    const fileName = file.name.toLowerCase()
+    const isXlsx = fileName.endsWith('.xlsx') || fileName.endsWith('.xls')
+    
     const reader = new FileReader()
     reader.onload = (e) => {
-      this.applyCsv(e.target.result, file.name)
-      this.toast('已导入本地 CSV')
+      if (isXlsx) {
+        const rows = parseXlsx(e.target.result)
+        this.applyRows(rows, file.name)
+        this.toast('已导入本地 Excel')
+      } else {
+        this.applyCsv(e.target.result, file.name)
+        this.toast('已导入本地 CSV')
+      }
     }
-    reader.readAsText(file, 'utf-8')
+    
+    if (isXlsx) {
+      reader.readAsArrayBuffer(file)
+    } else {
+      reader.readAsText(file, 'utf-8')
+    }
     event.target.value = ''
   },
 
-  applyCsv(text, filename = DEFAULT_FILE) {
-    const rows = parseCsv(text)
+  applyRows(rows, filename = DEFAULT_FILE) {
     if (!rows.length) {
-      this.toast('CSV 内容为空')
+      this.toast('文件内容为空')
       return
     }
     const headerLine = rows[0]
@@ -303,7 +326,7 @@ Alpine.data('testcaseApp', () => ({
         module,
         scenario,
         precondition,
-        steps: normalizeSteps(steps),
+        steps: normalizeSteps(String(steps)),
         expected,
         priority,
         remark,
@@ -316,6 +339,11 @@ Alpine.data('testcaseApp', () => ({
     this.sourceFile = filename
     this.refreshLookups()
     this.dirty = false
+  },
+
+  applyCsv(text, filename = DEFAULT_FILE) {
+    const rows = parseCsv(text)
+    this.applyRows(rows, filename)
   },
 
   refreshLookups() {

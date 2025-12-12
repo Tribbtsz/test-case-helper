@@ -37,8 +37,8 @@
           <div class="flex flex-wrap gap-2">
             <button class="btn-ghost" :disabled="loading" @click="loadDefault()">加载默认CSV</button>
             <label class="btn-ghost cursor-pointer">
-              <input class="sr-only" type="file" accept=".csv" @change="handleFile" />
-              导入CSV
+              <input class="sr-only" type="file" accept=".csv,.xlsx,.xls" @change="handleFile" />
+              导入文件
             </label>
             <button class="btn-ghost" @click="persist(true, true)">保存到浏览器</button>
             <button class="btn-ghost" @click="exportCsv(false)">导出CSV</button>

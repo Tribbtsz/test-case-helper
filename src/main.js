@@ -157,6 +157,145 @@ const buildReportCsv = (cases) => {
   return rows.map((r) => r.map(escapeCsvField).join(',')).join('\n')
 }
 
+const buildReportXlsx = (cases) => {
+  const { total, executed, statusCount, priorityCount, passRate } = summarize(cases)
+  const failed = cases.filter((c) => c.status === '失败')
+  const blocked = cases.filter((c) => c.status === '阻塞')
+  const abnormal = [...failed, ...blocked]
+
+  // 创建工作簿
+  const wb = XLSX.utils.book_new()
+
+  // 摘要数据
+  const summaryData = [
+    ['摘要指标', '数值'],
+    ['用例总数', total],
+    ['已执行', executed],
+    ['✓ 通过', statusCount['通过'] || 0],
+    ['✗ 失败', statusCount['失败'] || 0],
+    ['⊗ 阻塞', statusCount['阻塞'] || 0],
+    ['⊘ 跳过', statusCount['跳过'] || 0],
+    ['通过率', `${passRate}%`],
+    ['高/中/低优先级', `${priorityCount['高']}/${priorityCount['中']}/${priorityCount['低']}`],
+  ]
+
+  // 异常用例数据
+  const abnormalData = [
+    ['用例ID', '模块', '场景', '状态', '优先级', '前置条件', '测试步骤', '预期结果', '实际结果', '备注'],
+  ]
+  if (!abnormal.length) {
+    abnormalData.push(['✓ 无异常用例', '', '', '', '', '', '', '', '', ''])
+  } else {
+    abnormal.forEach((item) =>
+      abnormalData.push([
+        item.id,
+        item.module || '未分组',
+        item.scenario,
+        item.status === '失败' ? '✗ 失败' : '⊗ 阻塞',
+        item.priority === '高' ? '🔴 高' : item.priority === '中' ? '🟡 中' : item.priority === '低' ? '🟢 低' : '-',
+        item.precondition || '-',
+        item.steps.join('\n') || '-',
+        item.expected || '-',
+        item.actual || '-',
+        item.remark || '-',
+      ])
+    )
+  }
+
+  // 当前筛选用例数据
+  const casesData = [
+    ['用例ID', '模块', '场景', '状态', '优先级', '前置条件', '测试步骤', '预期结果', '实际结果', '备注', '更新时间'],
+  ]
+  cases.forEach((item) => {
+    let statusIcon = ''
+    switch (item.status) {
+      case '通过': statusIcon = '✓ 通过'; break
+      case '失败': statusIcon = '✗ 失败'; break
+      case '阻塞': statusIcon = '⊗ 阻塞'; break
+      case '跳过': statusIcon = '⊘ 跳过'; break
+      default: statusIcon = '○ 未执行'
+    }
+    
+    let priorityIcon = '-'
+    switch (item.priority) {
+      case '高': priorityIcon = '🔴 高'; break
+      case '中': priorityIcon = '🟡 中'; break
+      case '低': priorityIcon = '🟢 低'; break
+    }
+
+    casesData.push([
+      item.id,
+      item.module || '未分组',
+      item.scenario,
+      statusIcon,
+      priorityIcon,
+      item.precondition || '-',
+      item.steps.join('\n') || '-',
+      item.expected || '-',
+      item.actual || '-',
+      item.remark || '-',
+      item.updatedAt ? formatDateTime(item.updatedAt) : '-',
+    ])
+  })
+
+  // 创建工作表
+  const summaryWs = XLSX.utils.aoa_to_sheet(summaryData)
+  const abnormalWs = XLSX.utils.aoa_to_sheet(abnormalData)
+  const casesWs = XLSX.utils.aoa_to_sheet(casesData)
+
+  // 设置列宽
+  summaryWs['!cols'] = [{ wch: 22 }, { wch: 18 }]
+  abnormalWs['!cols'] = [
+    { wch: 15 },  // 用例ID
+    { wch: 15 },  // 模块
+    { wch: 35 },  // 场景
+    { wch: 12 },  // 状态
+    { wch: 12 },  // 优先级
+    { wch: 25 },  // 前置条件
+    { wch: 35 },  // 测试步骤
+    { wch: 35 },  // 预期结果
+    { wch: 35 },  // 实际结果
+    { wch: 25 },  // 备注
+  ]
+  casesWs['!cols'] = [
+    { wch: 15 },  // 用例ID
+    { wch: 15 },  // 模块
+    { wch: 35 },  // 场景
+    { wch: 12 },  // 状态
+    { wch: 12 },  // 优先级
+    { wch: 25 },  // 前置条件
+    { wch: 35 },  // 测试步骤
+    { wch: 35 },  // 预期结果
+    { wch: 35 },  // 实际结果
+    { wch: 25 },  // 备注
+    { wch: 20 },  // 更新时间
+  ]
+
+  // 设置行高（让多行内容更易读）
+  const setRowHeights = (ws, startRow, endRow) => {
+    if (!ws['!rows']) ws['!rows'] = []
+    for (let i = startRow; i <= endRow; i++) {
+      ws['!rows'][i] = { hpt: 25 }
+    }
+  }
+
+  // 为数据行设置合适的行高
+  setRowHeights(summaryWs, 1, summaryData.length - 1)
+  if (abnormalData.length > 1) {
+    setRowHeights(abnormalWs, 1, abnormalData.length - 1)
+  }
+  if (casesData.length > 1) {
+    setRowHeights(casesWs, 1, casesData.length - 1)
+  }
+
+  // 添加工作表到工作簿
+  XLSX.utils.book_append_sheet(wb, summaryWs, '📊 测试摘要')
+  XLSX.utils.book_append_sheet(wb, abnormalWs, '⚠️ 异常用例')
+  XLSX.utils.book_append_sheet(wb, casesWs, '📋 全部用例')
+
+  return wb
+}
+
 const priorityBadge = (priority) => {
   switch (priority) {
     case '高':
@@ -449,10 +588,11 @@ Alpine.data('testcaseApp', () => ({
       this.toast('无数据可导出')
       return
     }
-    const confirmed = confirm('生成报告并下载 CSV？包含概要与异常信息。')
+    const confirmed = confirm('生成报告并下载 Excel？包含概要、异常用例与全部用例。')
     if (!confirmed) return
     const stamp = new Date().toISOString().replace(/\D/g, '').slice(0, 14)
-    downloadFile(`测试报告-${stamp}.csv`, buildReportCsv(current))
+    const wb = buildReportXlsx(current)
+    XLSX.writeFile(wb, `测试报告-${stamp}.xlsx`)
     this.toast('报告已下载')
   },
 

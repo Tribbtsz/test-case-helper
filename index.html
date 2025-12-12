@@ -44,7 +44,7 @@
               <input class="sr-only" type="file" accept=".csv,.xlsx,.xls" @change="handleFile" />
               导入文件
             </label>
-            <button class="btn-primary" @click="generateReport()">生成报告</button>
+            <button class="btn-primary bg-slate-500" @click="generateReport()">生成报告</button>
             <button class="btn-ghost text-red-600 hover:text-red-700" @click="clearLocal()">清除缓存</button>
           </div>
         </div>
@@ -159,10 +159,10 @@
           <template x-if="loading">
             <span class="text-xs text-blue-600">加载中...</span>
           </template>
+          <button class="btn-ghost px-3 py-1 text-xs bg-cyan-200 text-cyan-600 hover:bg-cyan-300" @click="copyTemplate()">复制用例模版</button>
           <template x-if="message">
             <span class="text-xs text-amber-600" x-text="message"></span>
           </template>
-          <button class="btn-ghost px-3 py-1 text-xs bg-cyan-200 text-cyan-600 hover:bg-cyan-300" @click="copyTemplate()">复制用例模版</button>
           <div class="ml-auto flex gap-2">
             <button class="btn-ghost px-3 py-1 text-xs" @click="setAllStatus('通过')">全标通过</button>
             <button class="btn-ghost px-3 py-1 text-xs" @click="setAllStatus('未执行')">清除执行结果</button>
